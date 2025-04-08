@@ -1,0 +1,98 @@
+---
+title: "Supplemental Table S4 + Figure 1"
+output: html_notebook
+---
+
+# Library
+
+```{r}
+library(tidyverse)
+```
+
+# Supplemental Table S4
+
+## Make dataset with ICD codes
+
+```{r}
+library(icd.data)
+icd<- icd10cm2016 %>% 
+  mutate(diagnose_underliggende = as.character(code)) %>% 
+  select(diagnose_underliggende, short_desc, major, sub_chapter)
+```
+
+
+## Filter on relevant ICD codes and add from ICD package + fix uncategorized
+
+```{r}
+data_icd<-df %>%
+  filter(str_detect(diagnose_underliggende, "^I")) %>% 
+  left_join(icd, by="diagnose_underliggende") %>% 
+   mutate(short_desc = case_when(diagnose_underliggende == "I219"~"Acute myocardial infarction, unspecified",
+                                diagnose_underliggende == "I250"~"Atherosclerotic cardiovascular disease, so described",
+                                diagnose_underliggende == "I461"~"Sudden cardiac death, so described",
+                                diagnose_underliggende == "I64"~"Stroke, not specified as haemorrhage or infarction",
+                                diagnose_underliggende == "I694"~"Sequelae of stroke, not specified as haemorrhage or infarction",
+                                TRUE~short_desc),
+         sub_chapter = case_when(diagnose_underliggende %in% c("I219", "I250")~"Ischemic Heart Diseases",
+                                 diagnose_underliggende == "I461"~"Other Forms Of Heart Disease",
+                                 diagnose_underliggende %in% c("I64", "I694")~"Cerebrovascular Diseases",
+                                 diagnose_underliggende == "I139"~"Endocarditis and heart valve disorders in diseases classified elsewhere",
+                                 diagnose_underliggende == "I156" ~ "Cardiovascular disease, unspecified",
+                                 diagnose_underliggende == "I859" ~ "Oesophageal varices without bleeding",
+                                 TRUE~sub_chapter))
+```
+
+## Make plot
+
+```{r}
+df_plot_table<-data_icd %>% 
+  mutate(diagnose_underliggende=as.factor(diagnose_underliggende)) %>% 
+  group_by(diagnose_underliggende, sub_chapter) %>% 
+  count(diagnose_underliggende) %>% 
+  mutate(n=as.numeric(n),
+         prop = n/2865) %>% 
+  arrange(desc(n)) %>%
+  ungroup()
+
+df_plot_table %>% 
+  slice(1:10) %>% 
+  ggplot(aes(x=fct_reorder(diagnose_underliggende, prop), y=prop*100, fill=sub_chapter)) +
+  geom_col(color="black", size=1) + 
+  coord_flip () +
+  theme_minimal() +
+  xlab(label="ICD code") +
+  ylab(label="%") +
+  theme(legend.title=element_blank(),
+        legend.text = element_text(size=12, color="black"),
+        axis.text = element_text(size=12, color="black"),
+        axis.title=element_text(size=12, color="black"))+
+  viridis::scale_fill_viridis(discrete=T, option="D", begin=0.3, end=1)
+
+ggsave(file.path(path_res, "figures/icd-code-distribution-020425.png"), height=6, width =14, dpi=300)
+```
+
+## Make table
+
+```{r}
+# Fix variables first
+
+supp_3<-df_plot_table %>% 
+  left_join(icd, by=c("diagnose_underliggende", "sub_chapter")) %>% 
+  mutate(prop=round(prop*100,1),
+         short_desc = case_when(diagnose_underliggende == "I219"~"Acute myocardial infarction, unspecified",
+                                diagnose_underliggende == "I516"~"Cardiovascular disease, unspecified",
+                                diagnose_underliggende == "I64"~"Stroke, not specified as haemorrhage or infarction",
+                                diagnose_underliggende == "I461"~"Sudden cardiac death, so described",
+                                diagnose_underliggende == "I694"~"Sequelae of stroke, not specified as haemorrhage or infarction",
+                                diagnose_underliggende == "I139"~"Endocarditis and heart valve disorders in diseases classified elsewhere",
+                                diagnose_underliggende == "I859"~"Oesophageal varices without bleeding",
+                                TRUE~short_desc),
+         sub_chapter == case_when(diagnose_underliggende =="I516"~"Complications and ill-defined descriptions of heart disease")) %>% 
+  select("ICD10-code" = diagnose_underliggende, "Description" = "short_desc", "Sub-chapter" = "sub_chapter", n, prop) %>% 
+  mutate("n (%)" = paste0(n, " (", prop, ")")) %>% 
+  select(-n, -prop)
+  
+writexl::write_xlsx(supp_3, file.path(path_res, "figures/supplemental-table-s4.xlsx"))
+```
+
+

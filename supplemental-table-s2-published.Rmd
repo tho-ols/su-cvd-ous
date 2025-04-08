@@ -1,0 +1,238 @@
+---
+title: "Supplemental table S2"
+output: html_notebook
+---
+
+# Library
+
+```{r}
+library(tidyverse)
+```
+
+
+# Supplemental Table S2
+
+```{r}
+# Step 1: Summarize and stratify positivity detection variables.
+positive_strat<-df %>% 
+  mutate(CVD = case_when(str_detect(diagnose_underliggende, "^I")~"CVD",
+                                emcdda_overdose == 1~"Overdose",
+                           TRUE ~ "No CVD"),
+  )  %>% 
+  select(CVD, contains("pos"), -pos_7an, -pos_10_oh_karbazepin, -pos_9_oh_risperidon, -pos_hydroksybupropion, -pos_bupropion_hydroksybupr, -pos_diazepam, -pos_7af, -pos_7ak,  "Probable heroin" = sanns_heroin)  %>% 
+  mutate(across(2:172, ~as.factor(.))) %>% 
+ pivot_longer(cols = 2:172, names_to = "variable", values_to = "value") %>%
+  group_by(CVD, variable, value) %>%
+  summarise(n = n()) %>%
+  mutate(prop = signif(n / sum(n)*100, 3)) %>%
+  filter(value == "1") %>% 
+  select(-value) %>% 
+  group_by(variable) %>%
+  mutate(prop = paste0(n, " (", prop, ")")) %>% 
+  select(-n) %>% 
+  pivot_wider(names_from="CVD", values_from="prop")
+
+# Step 2: Summarize positivity detection variables for total population.
+positive_tot <- df %>% 
+  select(contains("pos"), contains("pos"), -pos_7an, -pos_10_oh_karbazepin, -pos_9_oh_risperidon, -pos_hydroksybupropion, -pos_bupropion_hydroksybupr, -pos_diazepam, -pos_7af, -pos_7ak,  "Probable heroin" = sanns_heroin)  %>% 
+  mutate(across(1:171, ~as.factor(.))) %>% 
+ pivot_longer(cols = 1:171, names_to = "variable", values_to = "value") %>%
+  group_by(variable, value) %>%
+  summarise(n = n()) %>%
+  mutate(prop = signif(n / sum(n)*100, 3)) %>%
+  filter(value == "1") %>% 
+  select(-value) %>% 
+  group_by(variable) %>%
+  mutate(prop = paste0(n, " (", prop, ")")) %>% 
+  select(-n, variable, Total = prop) 
+
+# Step 3: Join tibbles
+positive <- left_join(positive_tot, positive_strat, by="variable")
+
+# Step 4: Fix variable names
+# Create a named vector for mapping old names to new names
+
+name_mapping <- c(
+  "Probable heroin" = "Probable Heroin",
+  "pos_.1_benzylpiperazin" = "1-Benzylpiperazine",
+  "pos_.1_oh_midazolam" = "1-Hydroxy Midazolam",
+  "pos_.2_4_dinitrofenol" = "2,4-Dinitrophenol",
+  "pos_10_oh_karbazepin" = "10-Hydroxycarbamazepine",
+  "pos_2_fenyletylamin" = "2-Phenylethylamine",
+  "pos_2_fluormetamfetamin" = "2-Fluoromethamphetamine",
+  "pos_2c_b" = "2C-B",
+  "pos_3_5_dimetoksyfenol" = "3,5-Dimethoxyphenol",
+  "pos_3_metylmetkatinon" = "3-Methyl Methcathinone",
+  "pos_4_fluoramfetamin" = "4-Fluoroamphetamine",
+  "pos_4_fluormetamfetamin" = "4-Fluoromethamphetamine",
+  "pos_4_ho_ept" = "4-Hydroxy EPT",
+  "pos_4_metylamfetamin" = "4-Methylamphetamine",
+  "pos_5_apb" = "5-APB",
+  "pos_5_meo_dmt" = "5-Methoxy DMT",
+  "pos_5_oh_dmt" = "5-Hydroxy DMT",
+  "pos_5f_apinaca" = "5F-APINACA",
+  "pos_6mam" = "6-MAM",
+  "pos_8aminoklonazolam" = "8-Amino Clonazolam",
+  "pos_aceton" = "Acetone",
+  "pos_acetylfentanyl" = "Acetylfentanyl",
+  "pos_ah_7921" = "AH-7921",
+  "pos_alfa_metyltryptamin" = "Alpha-Methyltryptamine",
+  "pos_alfa_pvp" = "Alpha-PVP",
+  "pos_alfentanil" = "Alfentanil",
+  "pos_alimemazin" = "Alimemazine",
+  "pos_allobarbital" = "Allobarbital",
+  "pos_alprazolam" = "Alprazolam",
+  "pos_amfetamin" = "Amphetamine",
+  "pos_amisulprid" = "Amisulpride",
+  "pos_amitriptylin" = "Amitriptyline",
+  "pos_apinaca" = "APINACA",
+  "pos_aripiprazol" = "Aripiprazole",
+  "pos_atomoxetin" = "Atomoxetine",
+  "pos_baklofen" = "Baclofen",
+  "pos_bhb_blod" = "BHB Blood",
+  "pos_brivaracetam" = "Brivaracetam",
+  "pos_bromazepam" = "Bromazepam",
+  "pos_bromo_dragon_fly" = "Bromo-Dragonfly",
+  "pos_buprenorfin" = "Buprenorphine",
+  "pos_bupropion" = "Bupropion",
+  "pos_citalopram" = "Citalopram",
+  "pos_cyklopropylfentanyl" = "Cyclopropylfentanyl",
+  "pos_despropionyl_4_fluorfentanyl" = "Despropionyl 4-Fluorofentanyl",
+  "pos_dextropropoksyfen" = "Dextropropoxyphene",
+  "pos_diclazepam" = "Diclazepam",
+  "pos_dihydrobupropion" = "Dihydrobupropion",
+  "pos_dixyrazin" = "Dixyrazine",
+  "pos_doksylamin" = "Doxylamine",
+  "pos_doxepin" = "Doxepin",
+  "pos_duloksetin" = "Duloxetine",
+  "pos_estazolam" = "Estazolam",
+  "pos_etanol" = "Ethanol",
+  "pos_etg" = "Ethyl Glucuronide (EtG)",
+  "pos_etizolam" = "Etizolam",
+  "pos_ets" = "EthylSulfate (ETS)",
+  "pos_etylenglykol" = "Ethylene Glycol",
+  "pos_etylmorfin" = "Ethylmorphine",
+  "pos_fenazepam" = "Phenazepam",
+  "pos_fenobarbital" = "Phenobarbital",
+  "pos_fentanyl" = "Fentanyl",
+  "pos_fenytoin" = "Phenytoin",
+  "pos_flualprazolam" = "Flualprazolam",
+  "pos_flubromazolam" = "Flubromazolam",
+  "pos_flunitrazepam" = "Flunitrazepam",
+  "pos_fluoxetin" = "Fluoxetine",
+  "pos_flupentixol" = "Flupentixol",
+  "pos_flurazepam" = "Flurazepam",
+  "pos_fluvoksamin" = "Fluvoxamine",
+  "pos_furanylfentanyl" = "Furanyl Fentanyl",
+  "pos_gabapentin" = "Gabapentin",
+  "pos_haloperidol" = "Haloperidol",
+  "pos_homoamfetamin" = "Homoamphetamine",
+  "pos_hydromorfon" = "Hydromorphone",
+  "pos_isopropanol" = "Isopropanol",
+  "pos_karbamazepin" = "Carbamazepine",
+  "pos_karfentanil" = "Carfentanil",
+  "pos_ketamin" = "Ketamine",
+  "pos_ketobemidon" = "Ketobemidone",
+  "pos_klobazam" = "Clobazam",
+  "pos_klometiazol" = "Clomethiazole",
+  "pos_klomipramin" = "Clomipramine",
+  "pos_klonazepam" = "Clonazepam",
+  "pos_klorpromazin" = "Chlorpromazine",
+  "pos_klorprotixen" = "Chlorprothixene",
+  "pos_klozapin" = "Clozapine",
+  "pos_kodein_påvist" = "Codeine Detected",
+  "pos_kokain" = "Cocaine",
+  "pos_kvetiapin" = "Quetiapine",
+  "pos_lakosamid" = "Lacosamide",
+  "pos_lamotrigin" = "Lamotrigine",
+  "pos_levetiracetam" = "Levetiracetam",
+  "pos_levomepromazin" = "Levomepromazine",
+  "pos_litium" = "Lithium",
+  "pos_loperamid" = "Loperamide",
+  "pos_lorazepam" = "Lorazepam",
+  "pos_lsd" = "LSD",
+  "pos_mcpp" = "mCPP",
+  "pos_mda" = "MDA",
+  "pos_mdma" = "MDMA",
+  "pos_mdpv" = "MDPV",
+  "pos_mesoridazin" = "Mesoridazine",
+  "pos_metadon" = "Methadone",
+  "pos_metamfetamin" = "Methamphetamine",
+  "pos_metanol" = "Methanol",
+  "pos_metoxetamin" = "Methoxetamine",
+  "pos_metoxyacetylfentanyl" = "Methoxyacetyl Fentanyl",
+  "pos_mianserin" = "Mianserin",
+  "pos_midazolam" = "Midazolam",
+  "pos_mirtazapin" = "Mirtazapine",
+  "pos_mitragynin" = "Mitragynine",
+  "pos_moklobemid" = "Moclobemide",
+  "pos_morfin_påvist" = "Morphine Detected",
+  "pos_nalokson" = "Naloxone",
+  "pos_ndesmdiaz" = "Nor-desmethyl Diazepam",
+  "pos_ndesmetylklozapin" = "Nor-desmethyl Clozapine",
+  "pos_nefazodon" = "Nefazodone",
+  "pos_nitrazepam" = "Nitrazepam",
+  "pos_norfentanyl" = "Norfentanyl",
+  "pos_norpropoksyfen" = "Norpropoxyphene",
+  "pos_nortriptylin" = "Nortriptyline",
+  "pos_okskarbazepin" = "Oxcarbazepine",
+  "pos_okskarbazepin_hydroksylmetabolitt" = "Hydroxy Oxcarbazepine Metabolite",
+  "pos_oksykodon" = "Oxycodone",
+  "pos_olanzapin" = "Olanzapine",
+  "pos_oxazepam" = "Oxazepam",
+  "pos_paracetamol" = "Paracetamol",
+  "pos_paroxetin" = "Paroxetine",
+  "pos_pentazocin" = "Pentazocine",
+  "pos_pentobarbital" = "Pentobarbital",
+  "pos_perampanel" = "Perampanel",
+  "pos_perfenazin" = "Perphenazine",
+  "pos_petidin" = "Pethidine",
+  "pos_piritramid" = "Piritramide",
+  "pos_pma" = "PMA",
+  "pos_pma_pmma" = "PMA/PMMA",
+  "pos_pmma" = "PMMA",
+  "pos_pregabalin" = "Pregabalin",
+  "pos_proklorperazin" = "Prochlorperazine",
+  "pos_prothipendyl" = "Prothipendyl",
+  "pos_psilocin" = "Psilocin",
+  "pos_pyridostigmin" = "Pyridostigmine",
+  "pos_reboxetin" = "Reboxetine",
+  "pos_remifentanilsyre" = "Remifentanil Acid",
+  "pos_risperidon" = "Risperidone",
+  "pos_sertralin" = "Sertraline",
+  "pos_stiripentol" = "Stiripentol",
+  "pos_tapentadol" = "Tapentadol",
+  "pos_tfmpp" = "TFMPP",
+  "pos_thc" = "THC",
+  "pos_tiopental" = "Thiopental",
+  "pos_tioridazin" = "Thioridazine",
+  "pos_tizanidin" = "Tizanidine",
+  "pos_topiramat" = "Topiramate",
+  "pos_tramadol" = "Tramadol",
+  "pos_trazodon" = "Trazodone",
+  "pos_trikloretanol" = "Trichloroethanol",
+  "pos_trimipramin" = "Trimipramine",
+  "pos_tryptamin" = "Tryptamine",
+  "pos_valproinsyre" = "Valproic Acid",
+  "pos_vareniklin" = "Varenicline",
+  "pos_venlafaxin" = "Venlafaxine",
+  "pos_vigabatrin" = "Vigabatrin",
+  "pos_vortioksetin" = "Vortioxetine",
+  "pos_ziprasidon" = "Ziprasidone",
+  "pos_zolpidem" = "Zolpidem",
+  "pos_zonisamid" = "Zonisamide",
+  "pos_zopiklon" = "Zopiclone",
+  "pos_zuklopentixol" = "Zuclopenthixol"
+
+)
+
+
+#Step 5: Apply the name changes to the positive$variable
+
+positive$variable <- name_mapping[positive$variable]
+
+# Step 6: Write excelfile. Further modifications outside R
+writexl::write_xlsx(positive, file.path(path_res, "tables/table-s2-040425.xlsx"))
+
+```
+

@@ -1,0 +1,242 @@
+---
+title: "Supplemental table S7 + Figure 4"
+output: html_notebook
+---
+
+# Packages
+
+```{r}
+library(tidyverse)
+```
+
+
+# Load and modify WHO data
+
+```{r}
+cvd_who_mortality <-  readxl::read_excel(file.path(path_data, "cvd-who-070225.xlsx"))
+
+who<-cvd_who_mortality %>% 
+  filter(country=="Norway") %>% 
+  filter(year %in% c("2004", "2005", "2006", "2007", "2008", "2009", "2010", "2011", "2012", "2013", "2014", "2015", "2016")) %>% 
+  mutate(agegroup = str_replace(agegroup, "\\[", ""),
+         agegroup = str_replace(agegroup,  "\\]", ""),
+         crude_rate_per_100000 = as.numeric(death_rate_100000)) %>% 
+  group_by(agegroup, sex) %>% 
+  summarise(avg_crude_rate = mean(crude_rate_per_100000, na.rm=T))
+```
+
+## Prepare dataset
+
+```{r}
+# List of concentration variables with logical issues that needs to be taken care of
+logical_issues_vars <- c(
+  "aceton_blod_mmol_kg", "etg_øye_um", "etylenglykol_blod_um", "etylenglykol_blod_mm",
+  "ghb_øye_um", "isopropanol_blod_mmol_kg", "X.1_benzylpiperazin_blod_um",
+  "X.1_oh_midazolam_blod_um", "X.2_4_dinitrofenol_blod_um", "X.2_fenyletylamin_blod_um",
+  "X.2_fluormetamfetamin_blod_um", "X.3_metylmetkatinon_blod_um",
+  "X.4_ho_ept_blod_um", "X.4_metylamfetamin_blod_um", "X.5_apb_blod_um",
+  "X.5f_apinaca_blod_um", "X.5_oh_dmt_blod_um", "X.5_meo_dmt_blod_um",
+  "X.8_aminoklonazolam_blod_um", "acetylfentanyl_blod_nm", "ah_7921_blod_um",
+  "alfa_metyltryptamin_blod_um", "alfentanil_blod_um", "allobarbital_blod_um",
+  "apinaca_blod_um", "atomoxetin_blod_um", "brivaracetam_blod_um",
+  "bromazepam_blod_um", "bromo_dragon_fly_blod_um", "cyklopropylfentanyl_blod_nm",
+  "despropionyl_4_fluorfentanyl_blod_um", "dihydrobupropion_blod_um",
+  "doksylamin_blod_um", "estazolam_blod_um", "etizolam_blod_um",
+  "fenazepam_blod_um", "flualprazolam", "flubromazolam_blod_um",
+  "flurazepam_blod_um", "furanylfentanyl_blod_um", "homoamfetamin_blod_um",
+  "hydromorfon_blod_um", "karfentanil_blod_um", "klobazam_blod_um",
+  "litium_blod_ug_g", "lsd_blod_um", "mcpp_blod_um", "mda_blod_um",
+  "mdpv_blod_um", "mesoridazin_blod_um", "metoxetamin_blod_um",
+  "metoxyacetylfentanyl_blod_nm", "mitragynin_blod_um", "moklobemid_blod_um",
+  "morfin_blod_nm", "naloxon_blod_um", "naloxon_blod_nm",
+  "ndesmetylklozapin_blod_um", "nefazodon_blod_um", "norbuprenorfinglukuronid_blod_um",
+  "norfentanyl_blod_um", "norfentanyl_blod_nm", "norpetidin_blod_um",
+  "okskarbazepin_blod_um", "pentazocin_blod_um", "pentobarbital_blod_um",
+  "perampanel_blod_um", "piritramid_blod_um", "prothipendyl_blod_um",
+  "psilocin", "pyridostigmin_blod_um", "remifentanilsyre_blod_um",
+  "stiripentol_blod_um", "tfmpp_blod_um", "tiopental_blod_um",
+  "tioridazin_blod_um", "tizanidin_blod_um", "trazodon_blod_um",
+  "trikloretanol_blod_um", "tryptamin_blod_um", "vareniklin_blod_um",
+  "vigabatrin_blod_um", "ziprasidon_blod_um", "zonisamid_blod_um"
+)
+
+# Normalize names, correctly handling prefixes like `X.` and special cases
+substance_names <- gsub("^X\\.", ".", logical_issues_vars)  # Dot-prefixed for X. conv
+substance_names <- sub("_blod.*", "", substance_names)  # Remove undesired suffixes
+
+# Construct pos_ format variable names (both with and without a leading dot)
+substance_names_pos_format <- c(paste0("pos_", substance_names),
+                                paste0("pos_", gsub("^\\.", "", substance_names)))  # Handle a dot and no dot
+
+
+# Make dataset with drug categories
+data_drugs<-df %>%
+  select(-any_of(substance_names_pos_format)) %>% 
+  mutate(
+    Stimulants = as.integer(rowSums(select(., 
+      pos_amfetamin, pos_metamfetamin, pos_kokain, pos_alfa_pvp, 
+      pos_4_fluoramfetamin, pos_4_fluormetamfetamin, pos_mdma)) > 0),
+    
+    Opioids = as.integer(rowSums(select(., 
+      sanns_heroin, pos_6mam, pos_buprenorfin, pos_metadon, 
+      pos_morfin_påvist, pos_kodein_påvist, pos_fentanyl,
+      pos_ketobemidon, pos_tramadol, pos_petidin, pos_tapentadol, 
+      pos_dextropropoksyfen, pos_etylmorfin,
+      pos_oksykodon)) > 0),
+    
+    Benzodiazepines = as.integer(rowSums(select(., 
+      pos_alprazolam, pos_diazepam, pos_flunitrazepam, pos_midazolam,
+      pos_nitrazepam, pos_klonazepam, pos_lorazepam, pos_oxazepam,
+      pos_7af, pos_7ak, pos_7an, pos_ndesmdiaz, pos_diclazepam)) > 0),
+    
+    Z_Drugs = as.integer(rowSums(select(., 
+      pos_zolpidem, pos_zopiklon)) > 0),
+    
+    across("Stimulants":"Z_Drugs", ~case_when(is.na(.)~0,
+                                                          TRUE~.))
+  ) %>% 
+  mutate(cvd = case_when(str_detect(diagnose_underliggende, "^I") ~ 1,
+                          TRUE~0),
+     agegroup = as.factor(case_when(alder_aar < 1                     ~ "0",
+    alder_aar >= 1 & alder_aar <= 4   ~ "1-4",
+    alder_aar >= 5 & alder_aar <= 9   ~ "5-9",
+    alder_aar >= 10 & alder_aar <= 14 ~ "10-14",
+    alder_aar >= 15 & alder_aar <= 19 ~ "15-19",
+    alder_aar >= 20 & alder_aar <= 24 ~ "20-24",
+    alder_aar >= 25 & alder_aar <= 29 ~ "25-29",
+    alder_aar >= 30 & alder_aar <= 34 ~ "30-34",
+    alder_aar >= 35 & alder_aar <= 39 ~ "35-39",
+    alder_aar >= 40 & alder_aar <= 44 ~ "40-44",
+    alder_aar >= 45 & alder_aar <= 49 ~ "45-49",
+    alder_aar >= 50 & alder_aar <= 54 ~ "50-54",
+    alder_aar >= 55 & alder_aar <= 59 ~ "55-59",
+    alder_aar >= 60 & alder_aar <= 64 ~ "60-64",
+    alder_aar >= 65 & alder_aar <= 69 ~ "65-69",
+    alder_aar >= 70 & alder_aar <= 74 ~ "70-74",
+    alder_aar >= 75 & alder_aar <= 79 ~ "75-79",
+    alder_aar >= 80 & alder_aar <= 84 ~ "80-84",
+    alder_aar >= 85                 ~ "85+",
+  )))
+
+# Make tibbles for tables and plotting
+
+process_data <- function(data_age, var_name, var_label, who) {
+  data <- data_age %>%
+    group_by(agegroup, !!sym(var_name), cvd, kjonn_k) %>%
+    summarise(count = n(), .groups = 'drop') %>%
+    mutate(n = count) %>%
+    pivot_wider(
+      names_from = cvd,
+      values_from = count,
+      names_prefix = "n_cvd_",
+      values_fill = list(count = 0)
+    ) %>%
+    rename(n_noCVD = n_cvd_0, observed = n_cvd_1) %>%
+    mutate(!!var_name := fct_recode(as.factor(ifelse(is.na(!!sym(var_name)), 0, !!sym(var_name))), 
+                                     "Yes" = "1", "No" = "0")) %>%
+    rename(sex = kjonn_k) %>%
+    mutate(sex = fct_recode(as.factor(sex), "Female" = "2", "Male" = "1"))
+
+  res <- data %>%
+    group_by(agegroup) %>%
+    summarise(n = sum(n), n_noCVD = sum(n_noCVD), !!var_name := "All", sex = "All",
+              observed = sum(observed), .groups = 'drop') %>%
+    bind_rows(data) %>%
+    arrange(agegroup, !!sym(var_name), sex) %>%
+    mutate(n = as.numeric(n)) %>%
+    left_join(who, by = c("agegroup", "sex")) %>%
+    mutate(avg_rate_prop = avg_crude_rate / 100000) %>%
+    mutate(expected_cases = round(avg_rate_prop * n, 2)) %>%
+    ungroup() %>%
+    filter(!!sym(var_name) != "All", sex != "All") %>%
+    group_by(!!sym(var_name)) %>%
+    summarise(observed = sum(observed), expected = sum(expected_cases))
+
+  return(res)
+}
+
+# Use your function for each variable
+res_stimulants <- process_data(data_drugs, "Stimulants", "Stimulants", who)
+res_opioids <- process_data(data_drugs, "Opioids", "Opioids", who)
+res_benzo <- process_data(data_drugs, "Benzodiazepines", "Benzodiazepines", who)
+res_z <- process_data(data_drugs, "Z_Drugs", "Z_Drugs", who)
+
+```
+
+## Make table and plots
+
+```{r}
+
+# Step 1: Bind all tibbles
+library(emmeans)
+
+res_strat <- bind_rows(res_benzo, res_stimulants, res_z, res_opioids) %>% 
+  pivot_longer(cols=c(Benzodiazepines, Stimulants, Z_Drugs, Opioids), names_to="condition", values_to="cat") %>% 
+  arrange(condition) %>% 
+  filter(!is.na(cat)) %>% 
+  group_by(condition) %>% 
+  nest() %>% 
+  mutate(fit = map(data, ~glm(observed~cat+offset(log(expected)), family="poisson", data=.)),
+         tidy_fit = map(fit, ~broom::tidy(., conf.int=TRUE, exp=TRUE)),
+         emm = map(fit, ~emmeans(., "cat", type="response", offset=log(1))),
+         emm = map(emm, ~as_tibble(.)))
+
+# Step 2: Extract p-values
+
+p <- res_strat %>% 
+  unnest(tidy_fit) %>% 
+  select(Condition = condition, Category=term, p=p.value) %>% 
+  mutate(Category = as.factor(Category),
+         Category = fct_recode(Category, "No"="(Intercept)",
+                               "Yes" = "catYes"))
+
+# Step 3: Extract estimates
+
+emm_strat<-res_strat %>% 
+  unnest(emm) %>% 
+  mutate(across(is.numeric, ~round(.,1)),
+         "SMR (95 % CI)" = paste0(rate, " (", asymp.LCL, ", ", asymp.UCL, ")")) %>% 
+  select(Condition = condition, Category = cat, "SMR (95 % CI)") %>% 
+  arrange(Condition, Category) %>% 
+  left_join(p, by=c("Condition", "Category")) %>% 
+  mutate(p = case_when(p < 0.001~"< 0.001",
+                       TRUE~paste("= ",round(p, 2))),
+         p = case_when(Category == "No"~p==NA,
+                       TRUE~p))
+
+# Step 4: Write to excel for futher processing outside R
+
+writexl::write_xlsx(emm_strat, file.path(path_res, "tables/supplemental-table-s7-emm-stratified-detected-050325.xlsx"))
+
+# Step 5: Make plot
+
+res_strat %>% 
+  unnest(emm) %>% 
+  select(Condition = condition, Category = cat, rate, asymp.LCL, asymp.UCL) %>% 
+  arrange(Condition, Category) %>% 
+  left_join(p, by=c("Condition", "Category")) %>% 
+  mutate(p = case_when(p < 0.001~"p < 0.001",
+                       TRUE~paste("p = ", round(p, 2))),
+         p = case_when(Category == "No"~p==NA,
+                       TRUE~p),
+         Condition = as.factor(Condition),
+         Condition = fct_recode(Condition, "Detected benzodiazepine" = "Benzodiazepines",
+                                "Detected z-drug" = "Z_drugs",
+                                "Detected opioid" = "Opioids",
+                                "Detected stimulant" = "Stimulants")) %>% 
+  ggplot(aes(x=Category, y=rate, ymin=asymp.LCL, ymax=asymp.UCL)) +
+  geom_pointrange(shape=21, fill="#367c3a", size=0.6) +
+  coord_flip() +
+  facet_wrap(~Condition, ncol=1) +
+  theme_minimal() +
+  theme(strip.text = element_text(size=12, face="bold", hjust=0),
+        axis.text = element_text(size=12, color="black"),
+        axis.title=element_text(size=12, color="black")) +
+  xlab("") +
+  ylab("asSMR") +
+  geom_text(aes(label=p, y = 150, x=1.5))
+
+ggsave(file.path(path_res, "figures/fig-4-080425.png"), dpi=300, width=6, height=6)
+```
+```
+

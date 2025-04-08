@@ -1,0 +1,260 @@
+---
+title: "Supplemental Table S3"
+output: html_notebook
+---
+
+# Library
+
+```{r}
+library(tidyverse)
+```
+
+
+# Supplemental table S3
+
+```{r}
+
+# Step 1: Create new dataset with relevant grouping variables and metabolites. Calculate counts and %ages, as well as median and ranges
+metab_strat<-df %>% 
+  mutate(CVD = case_when(str_detect(diagnose_underliggende, "^I")~"CVD",
+                                emcdda_overdose == 1~"Overdose",
+                           TRUE ~ "No CVD"),
+  )  %>% 
+  select(CVD, contains("blod"), -pos_bhb_blod, -is.logical)  %>% 
+  mutate(across(2:116, ~as.numeric(.)),
+         across(2:116, ~signif(., 2))) %>% 
+ pivot_longer(cols = 2:116, names_to = "variable", values_to = "value") %>%
+  group_by(CVD, variable) %>%
+  summarise(n_pct = paste0(sum(!is.na(value)), " (", signif(sum(!is.na(value))/n()*100, 3), ")"),
+            median_range = paste0(signif(median(value, na.rm=T), 3), " (", signif(range(value, na.rm=T)[1], 3), ", ", signif(range(value, na.rm=T)[2], 3), ")")) %>% 
+  pivot_wider(names_from="CVD", values_from=c("median_range", "n_pct")) %>% 
+  select(variable, 5, 2, 6,3, 7, 4)
+
+
+# Step 2: Calculate counts and %ages, as well as median and ranges for the total population
+metab_tot <- df %>% 
+  select(contains("blod"), -pos_bhb_blod, -is.logical)  %>% 
+  mutate(across(1:115, ~as.numeric(.)),
+         across(1:115, ~signif(., 2))) %>% 
+ pivot_longer(cols = 1:115, names_to = "variable", values_to = "value") %>%
+  group_by(variable) %>%
+  summarise(n_pct = paste0(sum(!is.na(value)), " (", signif(sum(!is.na(value))/n()*100, 3), ")"),
+            median_range = paste0(signif(median(value, na.rm=T), 3), " (", signif(range(value, na.rm=T)[1], 3), ", ", signif(range(value, na.rm=T)[2], 3), ")"))
+
+# Step 3: Join total and grouped datasets
+metab <- left_join(metab_tot, metab_strat, by="variable") 
+
+# Step 4: Create a sample vector of variable names
+
+# Create a named vector for mapping old names to new names
+name_mapping <- c(
+  "aceton" = "Acetone",
+  "bhb" = "BHB",
+  "etanol" = "Ethanol",
+  "etg" = "Ethyl Sulfate",
+  "ets" = "Ethyl Glucuronide",
+  "etylenglykol" = "Ethylene Glycol",
+  "ghb" = "GHB",
+  "isopropanol" = "Isopropanol",
+  "metanol" = "Methanol",
+  "paracetamol" = "Paracetamol",
+  "X.1_benzylpiperazin" = "1-Benzylpiperazine",
+  "X.1_oh_midazolam" = "1-Hydroxy Midazolam",
+  "X.2_4_dinitrofenol" = "2,4-Dinitrophenol",
+  "X.2c_b" = "2C-B",
+  "X.2_fenyletylamin" = "2-Phenylethylamine",
+  "X.2_fluormetamfetamin" = "2-Fluoromethamphetamine",
+  "X.3_metylmetkatinon" = "3-Methyl Methcathinone",
+  "X.3_5_dimetoksyfenol" = "3,5-Dimethoxyphenol",
+  "X.4_ho_ept" = "4-Hydroxy EPT",
+  "X.4_fluoramfetamin" = "4-Fluoroamphetamine",
+  "X.4_fluormetamfetamin" = "4-Fluoromethamphetamine",
+  "X.4_metylamfetamin" = "4-Methylamphetamine",
+  "X.5_apb" = "5-APB",
+  "X.5f_apinaca" = "5F-APINACA",
+  "X.5_oh_dmt" = "5-Hydroxy DMT",
+  "X.5_meo_dmt" = "5-Methoxy DMT",
+  "X.6_mam" = "6-MAM",
+  "X.7af" = "7-Acetoxy",
+  "X.7ak" = "7-Acetamido",
+  "X.7an" = "7-Anhydro",
+  "X.8_aminoklonazolam" = "8-Amino Clonazolam",
+  "X.9_oh_risperidon" = "9-Hydroxy Risperidone",
+  "X.10_oh_karbazepin" = "10-Hydroxycarbamazepine",
+  "acetylfentanyl" = "Acetylfentanyl",
+  "ah_7921" = "AH-7921",
+  "alfa_metyltryptamin" = "Alpha-Methyltryptamine",
+  "alfa_pvp" = "Alpha-PVP",
+  "alfentanil" = "Alfentanil",
+  "alimemazin" = "Alimemazine",
+  "allobarbital" = "Allobarbital",
+  "alprazolam" = "Alprazolam",
+  "amfetamin" = "Amphetamine",
+  "amisulprid" = "Amisulpride",
+  "amitriptylin" = "Amitriptyline",
+  "apinaca" = "APINACA",
+  "aripiprazol" = "Aripiprazole",
+  "atomoxetin" = "Atomoxetine",
+  "baklofen" = "Baclofen",
+  "benzecg" = "Benzecg Unclear",
+  "brivaracetam" = "Brivaracetam",
+  "bromazepam" = "Bromazepam",
+  "bromo_dragon_fly" = "Bromo-Dragonfly",
+  "buprenorfin" = "Buprenorphine",
+  "bupropion" = "Bupropion",
+  "citalopram" = "Citalopram",
+  "cyklopropylfentanyl" = "Cyclopropylfentanyl",
+  "despropionyl_4_fluorfentanyl" = "Despropionyl 4-Fluorofentanyl",
+  "dextropropoksyfen" = "Dextropropoxyphene",
+  "diazepam" = "Diazepam",
+  "diclazepam" = "Diclazepam",
+  "dihydrobupropion_erytro" = "Dihydrobupropion (erytro)",
+  "dihydrobupropion_treo" = "Dihydrobupropion (treo)",
+  "dihydrobupropion" = "Dihydrobupropion",
+  "dixyrazin" = "Dixyrazine",
+  "doksylamin" = "Doxylamine",
+  "doxepin" = "Doxepin",
+  "duloksetin" = "Duloxetine",
+  "estazolam" = "Estazolam",
+  "etizolam" = "Etizolam",
+  "etylmorfin" = "Ethylmorphine",
+  "etylmorfin_6_gluk" = "Ethylmorphine 6-glucuronide",
+  "fenazepam" = "Phenazepam",
+  "fenobarbital" = "Phenobarbital",
+  "fentanyl" = "Fentanyl",
+  "fenytoin" = "Phenytoin",
+  "flubromazolam" = "Flubromazolam",
+  "flunitrazepam" = "Flunitrazepam",
+  "fluoxetin" = "Fluoxetine",
+  "flupentixol" = "Flupentixol",
+  "flurazepam" = "Flurazepam",
+  "fluvoksamin" = "Fluvoxamine",
+  "furanylfentanyl" = "Furanyl Fentanyl",
+  "gabapentin" = "Gabapentin",
+  "haloperidol" = "Haloperidol",
+  "homoamfetamin" = "Homoamphetamine",
+  "hydroksybupropion" = "Hydroxybupropion",
+  "hydromorfon" = "Hydromorphone",
+  "karbamazepin" = "Carbamazepine",
+  "karbamazepin_10_11_epoksid" = "Carbamazepine 10,11-epoxide",
+  "karfentanil" = "Carfentanil",
+  "karisoprodol" = "Carisoprodol",
+  "ketamin" = "Ketamine",
+  "ketobemidon" = "Ketobemidone",
+  "klobazam" = "Clobazam",
+  "klometiazol" = "Clomethiazole",
+  "klomipramin" = "Clomipramine",
+  "klonazepam" = "Clonazepam",
+  "klorpromazin" = "Chlorpromazine",
+  "klorprotixen" = "Chlorprothixene",
+  "klozapin" = "Clozapine",
+  "kodein" = "Codeine",
+  "kodein_6_gluk" = "Codeine 6-glucuronide",
+  "kokain" = "Cocaine",
+  "lakosamid" = "Lacosamide",
+  "lamotrigin" = "Lamotrigine",
+  "levetiracetam" = "Levetiracetam",
+  "levomepromazin" = "Levomepromazine",
+  "litium" = "Lithium",
+  "loperamid" = "Loperamide",
+  "lorazepam" = "Lorazepam",
+  "lsd" = "LSD",
+  "mcpp" = "mCPP",
+  "mda" = "MDA",
+  "mdma" = "MDMA",
+  "mdpv" = "MDPV",
+  "meprobamat" = "Meprobamate",
+  "mesoridazin" = "Mesoridazine",
+  "metadon" = "Methadone",
+  "metamfetamin" = "Methamphetamine",
+  "metoxetamin" = "Methoxetamine",
+  "metoxyacetylfentanyl" = "Methoxyacetyl Fentanyl",
+  "metylfenidat" = "Methylphenidate",
+  "mianserin" = "Mianserin",
+  "midazolam" = "Midazolam",
+  "mirtazapin" = "Mirtazapine",
+  "mitragynin" = "Mitragynine",
+  "moklobemid" = "Moclobemide",
+  "morfin" = "Morphine",
+  "morfin_3_gluk" = "Morphine 3-glucuronide",
+  "morfin_6_gluk" = "Morphine 6-glucuronide",
+  "naloxon" = "Naloxone",
+  "ndesmdiaz" = "Nor-desmethyl Diazepam",
+  "ndesmetylklozapin" = "Nor-desmethyl Clozapine",
+  "nefazodon" = "Nefazodone",
+  "nitrazepam" = "Nitrazepam",
+  "norbuprenorfinglukuronid" = "Norbuprenorfin Glucuronide",
+  "norfentanyl" = "Norfentanyl",
+  "norpetidin" = "Norpetidine",
+  "norpropoksyfen" = "Norpropoxyphene",
+  "nortriptylin" = "Nortriptyline",
+  "okskarbazepin" = "Oxcarbazepine",
+  "okskarbazepin_hydroksylmetabolitt" = "Hydroxy Oxcarbazepine Metabolite",
+  "oksykodon" = "Oxycodone",
+  "olanzapin" = "Olanzapine",
+  "oxazepam" = "Oxazepam",
+  "paroxetin" = "Paroxetine",
+  "pentazocin" = "Pentazocine",
+  "pentobarbital" = "Pentobarbital",
+  "perampanel" = "Perampanel",
+  "perfenazin" = "Perphenazine",
+  "petidin" = "Pethidine",
+  "piritramid" = "Piritramide",
+  "pma" = "PMA",
+  "pmma" = "PMMA",
+  "pregabalin" = "Pregabalin",
+  "proklorperazin" = "Prochlorperazine",
+  "prothipendyl" = "Prothipendyl",
+  "pyridostigmin" = "Pyridostigmine",
+  "quetiapin" = "Quetiapine",
+  "reboxetin" = "Reboxetine",
+  "remifentanilsyre" = "Remifentanil Acid",
+  "risperidon" = "Risperidone",
+  "ritalinsyre" = "Ritalinic Acid",
+  "sertralin" = "Sertraline",
+  "stiripentol" = "Stiripentol",
+  "tapentadol" = "Tapentadol",
+  "tfmpp" = "TFMPP",
+  "thc" = "THC",
+  "tiopental" = "Thiopental",
+  "tioridazin" = "Thioridazine",
+  "tizanidin" = "Tizanidine",
+  "topiramat" = "Topiramate",
+  "tramadol" = "Tramadol",
+  "o_desmetyltramadol" = "O-Desmethyltramadol",
+  "trazodon" = "Trazodone",
+  "trikloretanol" = "Trichloroethanol",
+  "trimipramin" = "Trimipramine",
+  "tryptamin" = "Tryptamine",
+  "valproinsyre" = "Valproic Acid",
+  "vareniklin" = "Varenicline",
+  "venlafaxin" = "Venlafaxine",
+  "vigabatrin" = "Vigabatrin",
+  "vortioksetin" = "Vortioxetine",
+  "ziprasidon" = "Ziprasidone",
+  "zolpidem" = "Zolpidem",
+  "zonisamid" = "Zonisamide",
+  "zopiclon" = "Zopiclone",
+  "zuklopentixol" = "Zuclopenthixol"
+)
+
+
+
+# Step 5: Remove medium and unit suffixes
+metab$metabolite <- str_replace_all(metab$variable, "_blod.*", "")
+
+metab$metabolite<- name_mapping[metab$metabolite]
+
+# Step 6: Create final dataset
+metab_conc<-metab %>%
+  separate(variable, into = c("variable", "unit"), sep = "(?<=_)blod_", extra = "merge", fill = "right") %>% 
+  select(metabolite, unit, 3:10) %>% 
+  mutate(across(is.character, ~case_when(str_detect(., "Inf,|\\(0\\)")~"-",
+                                         TRUE~.)),
+         unit = str_replace(unit, "u", "µ")) %>% 
+  arrange(metabolite)
+
+# Step 7: Write to excel. Further processing, including removal of redundant variables are performed outside R.
+writexl::write_xlsx(metab_conc, file.path(path_res, "/tables/supplemental-table-s3.xlsx"))
+
+```

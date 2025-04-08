@@ -4,3 +4,7 @@ output: github_document
 ---
 
 This repo contains the code files used for analysis in the project on substance use and cardiovascular mortality at the Oslo University Hospital.
+
+# Update April 8th
+
+Uploaded all code associated with initial submission of paper.

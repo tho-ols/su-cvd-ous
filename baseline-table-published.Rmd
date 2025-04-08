@@ -1,0 +1,229 @@
+---
+title: "Baseline table script"
+author: "Thomas Olsen"
+output: html_notebook
+---
+
+# Baseline table
+
+```{r}
+library(tidyverse)
+library(writexl)
+
+# Step 1: Create a new column 'CVD' based on conditions in 'diagnose_underliggende' and 'emcdda_overdose'.
+data <- df %>% 
+  mutate(
+    CVD = case_when(
+      str_detect(diagnose_underliggende, "^I") ~ "CVD",           # If diagnose starts with 'I', labeled as 'CVD'.
+      emcdda_overdose == 1 ~ "Overdose",                         # If 'emcdda_overdose' is 1, labeled as 'Overdose'.
+      TRUE ~ "No CVD"                                            # Default label when conditions above are not met.
+    )
+  )
+
+# Step 2: Group data by 'CVD' and count the number of occurrences in each group for later labelling.
+cvd_summary <- data %>% 
+  group_by(CVD) %>% 
+  summarize(n = n())                                             # Count the number of records in each group.
+
+# Step 3: Create a baseline table by defining several columns and converting them to factors.
+tab1df <- data %>% 
+  mutate(
+    polydrug = if_else(antall_påvist_ekskl_alk > 0, 1, 0),       # Define 'polydrug' based on 'antall_påvist_ekskl_alk'.
+    CVD = case_when(
+      str_detect(diagnose_underliggende, "^I") ~ "CVD",
+      emcdda_overdose == 1 ~ "Overdose",
+      TRUE ~ "No CVD"
+    ),
+    # Convert specified columns to factors.
+    across(c(kjonn_k, prev_cvd, prev_dia_1, prev_dia_2, prev_obesity, prev_lipid, pre_tsb, illegale, 
+             polydrug, CVD, opioids_lastyear, benzo_lastyear, z_lastyear, stimulants_lastyear), as.factor)
+  ) %>% 
+  # Select relevant columns for baseline table.
+  select(alder_aar, kjonn_k, prev_cvd, prev_dia_1, prev_dia_2, prev_obesity, prev_lipid, pre_tsb, illegale, 
+         polydrug, CVD, opioids_lastyear, benzo_lastyear, z_lastyear, stimulants_lastyear)
+
+# Step 4: Summarize continuous variables (age) in the baseline table.
+baseline_table <- tab1df %>% 
+  group_by(CVD) %>%
+  summarize(
+    alder_aar = sprintf("%.1f (%.1f)", mean(alder_aar, na.rm = TRUE), sd(alder_aar, na.rm = TRUE)),  # Format: mean (sd).
+    .groups = 'drop'
+  ) %>% 
+  pivot_wider(names_from = "CVD", values_from = "alder_aar") %>% 
+  add_column(Variable = "Age, y", .before = "CVD")
+
+# Step 5: Summarize categorical variables in the baseline table.
+categorical_summary <- tab1df %>%
+  select(CVD, kjonn_k, prev_cvd, prev_dia_1, prev_dia_2, prev_obesity, prev_lipid, pre_tsb, illegale, 
+         polydrug, opioids_lastyear, benzo_lastyear, z_lastyear, stimulants_lastyear) %>%
+  pivot_longer(cols = -CVD, names_to = "Variable", values_to = "value") %>%
+  group_by(CVD, Variable, value) %>%
+  summarize(n = n(), .groups = 'drop') %>%
+  group_by(CVD, Variable) %>%
+  mutate(percent = n / sum(n) * 100) %>%
+  mutate(summary = sprintf("%d (%.1f%%)", n, percent)) %>%
+  select(-n, -percent) %>% 
+  pivot_wider(names_from = "CVD", values_from = "summary") %>% 
+  filter(value == 1) %>% 
+  mutate(
+    Variable = as.factor(Variable),
+    Variable = fct_relevel(Variable, "kjonn_k", "prev_cvd", "prev_dia_1", "prev_dia_2", "prev_obesity", 
+                           "prev_lipid", "pre_tsb", "illegale", "polydrug", "opioids_lastyear", 
+                           "benzo_lastyear", "z_lastyear", "stimulants_lastyear"),
+    Variable = fct_recode(Variable, 
+     "Illegal substances, n (%)" = "illegale",
+      "Males, n (%)" = "kjonn_k",
+      "Polysubstance use, n (%)" = "polydrug",
+      "Previous addiction treatment, n (%)" = "pre_tsb",
+      "Previous CVD, n (%)" = "prev_cvd",
+      "Previous type 1 diabetes, n (%)" = "prev_dia_1",
+      "Previous type 2 diabetes, n (%)" = "prev_dia_2",
+      "Previous obesity, n (%)" = "prev_obesity",
+      "Previous dyslipidemia, n (%)" = "prev_lipid",
+      "Filled opioid prescription, n (%)" = "opioids_lastyear",
+      "Filled benzodiazepine prescription, n (%)" = "benzo_lastyear",
+      "Filled z-drug prescription, n (%)" = "z_lastyear",
+      "Filled stimulant prescription, n (%)" = "stimulants_lastyear"
+    )
+  ) %>% 
+  select(-value)
+
+# Step 6: Create the baseline table for total population, summarizing continuous variable (age) only.
+baseline_table_tot <- tab1df %>%
+  summarize(
+    alder_aar = sprintf("%.1f (%.1f)", mean(alder_aar, na.rm = TRUE), sd(alder_aar, na.rm = TRUE)),  # Format: mean (sd).
+    .groups = 'drop'
+  ) %>% 
+  add_column(Variable = "Age, y", .before = "alder_aar") %>% 
+  rename(Total = alder_aar)
+
+# Step 7: Summarize categorical variables for total population.
+categorical_summary_tot <- tab1df %>%
+  select(CVD, kjonn_k, prev_cvd, prev_dia_1, prev_dia_2, prev_obesity, prev_lipid, pre_tsb, illegale, 
+         polydrug, opioids_lastyear, benzo_lastyear, z_lastyear, stimulants_lastyear) %>% 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "value") %>%
+  group_by(Variable, value) %>%
+  summarize(n = n(), .groups = 'drop') %>%
+  group_by(Variable) %>%
+  mutate(percent = n / sum(n) * 100) %>%
+  mutate(summary = sprintf("%d (%.1f%%)", n, percent)) %>%
+  select(-n, -percent) %>% 
+  filter(value == 1) %>% 
+  mutate(
+    Variable = as.factor(Variable),
+    Variable = fct_relevel(Variable, "kjonn_k", "prev_cvd", "prev_dia_1", "prev_dia_2", "prev_obesity", 
+                           "prev_lipid", "pre_tsb", "illegale", "polydrug", "opioids_lastyear", 
+                           "benzo_lastyear", "z_lastyear", "stimulants_lastyear"),
+    Variable = fct_recode(Variable, 
+      "Illegal substances, n (%)" = "illegale",
+      "Males, n (%)" = "kjonn_k",
+      "Polysubstance use, n (%)" = "polydrug",
+      "Previous addiction treatment, n (%)" = "pre_tsb",
+      "Previous CVD, n (%)" = "prev_cvd",
+      "Previous type 1 diabetes, n (%)" = "prev_dia_1",
+      "Previous type 2 diabetes, n (%)" = "prev_dia_2",
+      "Previous obesity, n (%)" = "prev_obesity",
+      "Previous dyslipidemia, n (%)" = "prev_lipid",
+      "Filled opioid prescription, n (%)" = "opioids_lastyear",
+      "Filled benzodiazepine prescription, n (%)" = "benzo_lastyear",
+      "Filled z-drug prescription, n (%)" = "z_lastyear",
+      "Filled stimulant prescription, n (%)" = "stimulants_lastyear"
+    )
+  ) %>% 
+  select(-value, Total = summary)
+
+# Step 8: Summarize and stratify positivity detection variables.
+positive_strat <- data %>% 
+  # Create new 'CVD' column similarly to previous steps for group stratification.
+  mutate(CVD = case_when(
+    str_detect(diagnose_underliggende, "^I") ~ "CVD",
+    emcdda_overdose == 1 ~ "Overdose",
+    TRUE ~ "No CVD"
+  )) %>% 
+  # Select only positivity detection columns including 'CVD' for stratification.
+  select(CVD, "Ethanol, n (%)" = pos_etanol, "Paracetamol, n (%)" = pos_paracetamol, "EtG, n (%)" = pos_etg, 
+         "Codeine, n (%)" = pos_kodein_påvist, "EtS, n (%)" = pos_ets, "Zopiclone, n (%)" = pos_zopiklon, 
+         "Citalopram, n (%)" = pos_citalopram, "Morphine, n (%)" = pos_morfin_påvist, "Amphetamine, n (%)" = pos_amfetamin, 
+         "THC, n (%)" = pos_thc, "Probable heroin, n (%)" = sanns_heroin, 
+         "Diazepam or Nor-desemethyl diazepam, n (%)" = pos_ndesmdiaz, "Fentanyl, n (%)" = pos_fentanyl, 
+         "Mirtazapine, n (%)" = pos_mirtazapin, "Tramadol, n (%)" = pos_tramadol, "Cocaine, n (%)" = pos_kokain, 
+         "MDMA, n (%)" = pos_mdma, "Ketamine, n (%)" = pos_ketamin, "Methamphetamine, n (%)" = pos_metamfetamin, 
+         "Oxycodone, n (%)" = pos_oksykodon, "Zolpidem, n (%)" = pos_zolpidem) %>% 
+  # Convert selected columns to factors for analysis.
+   pivot_longer(cols = -CVD, names_to = "Variable", values_to = "value") %>%
+  group_by(CVD, Variable, value) %>%
+  summarize(n = n(), .groups = 'drop') %>%
+  group_by(CVD, Variable) %>%
+  mutate(percent = n / sum(n) * 100) %>%
+  mutate(summary = sprintf("%d (%.1f%%)", n, percent)) %>%
+  select(-n, -percent) %>% 
+  pivot_wider(names_from = "CVD", values_from = "summary") %>% 
+  filter(value == 1) %>% 
+  select(-value)
+
+
+# Step 9: Summarize positivity detection variables for total population.
+positive_tot <- data %>% 
+  # Select relevant columns for positivity detection.
+  select("Ethanol, n (%)" = pos_etanol, "Paracetamol, n (%)" = pos_paracetamol, "EtG, n (%)" = pos_etg, 
+         "Codeine, n (%)" = pos_kodein_påvist, "EtS, n (%)" = pos_ets,  "Zopiclone, n (%)" = pos_zopiklon, 
+         "Citalopram, n (%)" = pos_citalopram, "Morphine, n (%)" = pos_morfin_påvist, "Amphetamine, n (%)" = pos_amfetamin, 
+         "THC, n (%)" = pos_thc, "Probable heroin, n (%)" = sanns_heroin, 
+         "Diazepam or Nor-desemethyl diazepam, n (%)" = pos_ndesmdiaz, "EtS, n (%)" = pos_ets, "Fentanyl, n (%)" = pos_fentanyl, 
+         "Mirtazapine, n (%)" = pos_mirtazapin, "Tramadol, n (%)" = pos_tramadol, "Cocaine, n (%)" = pos_kokain, 
+         "MDMA, n (%)" = pos_mdma, "Ketamine, n (%)" = pos_ketamin, "Methamphetamine, n (%)" = pos_metamfetamin, 
+         "Oxycodone, n (%)" = pos_oksykodon, "Zolpidem, n (%)" = pos_zolpidem) %>% 
+ pivot_longer(cols = everything(), names_to = "Variable", values_to = "value") %>%
+  group_by(Variable, value) %>%
+  summarize(n = n(), .groups = 'drop') %>%
+  group_by(Variable) %>%
+  mutate(percent = n / sum(n) * 100) %>%
+  mutate(summary = sprintf("%d (%.1f%%)", n, percent)) %>%
+  select(-n, -percent) %>% 
+  filter(value == 1)  %>% 
+  select(-value, Total = summary)
+
+# Step 10: Combine stratified and total positivity detection results.
+positive <- left_join(positive_tot, positive_strat, by = "Variable") 
+
+# Step 11: Combine continuous and categorical summaries into final baseline tables.
+baseline_temp <- bind_rows(baseline_table, categorical_summary)
+baseline_temp_tot <- bind_rows(baseline_table_tot, categorical_summary_tot)
+
+# Combine tables with reordering of variables and write to Excel.
+variable_order <- c(
+  "Age, y", "Males, n (%)", "Previous CVD, n (%)", "Previous type 1 diabetes, n (%)", 
+  "Previous type 2 diabetes, n (%)", "Previous dyslipidemia, n (%)", "Previous obesity, n (%)", 
+  "Polysubstance use, n (%)", "Previous addiction treatment, n (%)", 
+  "Illegal substances, n (%)", "Filled benzodiazepine prescription, n (%)", "Filled opioid prescription, n (%)", 
+  "Filled stimulant prescription, n (%)", "Filled z-drug prescription, n (%)", "Amphetamine, n (%)", "Citalopram, n (%)", 
+  "Cocaine, n (%)", "Codeine, n (%)", "Diazepam or Nor-desemethyl diazepam, n (%)", "EtG, n (%)", 
+  "EtS, n (%)", "Ethanol, n (%)", "Fentanyl, n (%)", "Ketamine, n (%)", 
+  "MDMA, n (%)", "Methamphetamine, n (%)", "Mirtazapine, n (%)", "Morphine, n (%)", 
+  "Oxycodone, n (%)", "Paracetamol, n (%)", "Probable heroin, n (%)", "THC, n (%)", 
+  "Tramadol, n (%)", "Zolpidem, n (%)", "Zopiclone, n (%)"
+)
+
+baseline_table_final <- baseline_temp %>% 
+  left_join(baseline_temp_tot, by = "Variable") %>% 
+  bind_rows(positive) %>% 
+  mutate(Variable = factor(Variable, levels = variable_order)) %>% # Set desired order
+  select(Variable, "Total (N = 16607)" = Total, "CVD (N = 2865)" = CVD) %>%
+  arrange(Variable) # Sort according to defined factor levels
+
+supplemental_table_1 <- baseline_temp %>% 
+  left_join(baseline_temp_tot, by = "Variable") %>% 
+  bind_rows(positive) %>% 
+  mutate(Variable = factor(Variable, levels = variable_order)) %>% # Set desired order
+  select(Variable, "Total (N = 16607)" = Total, "CVD (N = 2865)" = CVD, 
+         "No CVD (N = 9954)" = "No CVD", "Overdose (N = 3788)" = Overdose) %>%
+  arrange(Variable) # Sort according to defined factor levels
+
+
+# Step 12: Write results to Excel files. Further formatting performed outside R. 
+writexl::write_xlsx(baseline_table_final, file.path(path_res, "tables/table-1-030425.xlsx"))
+writexl::write_xlsx(supplemental_table_1, file.path(path_res, "tables/supplemental-table-s1-030425.xlsx"))
+
+
+```
+

@@ -1,7 +1,7 @@
 ---
-title: "Baseline table script"
+title: "Baseline table script + supplemental table 1"
 author: "Thomas Olsen"
-output: html_notebook
+output: github_document
 ---
 
 # Baseline table

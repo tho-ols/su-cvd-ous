@@ -1,6 +1,7 @@
 ---
 title: "Supplemental table S7 + Figure 4"
-output: html_notebook
+author: "Thomas Olsen"
+output: github_document
 ---
 
 # Packages

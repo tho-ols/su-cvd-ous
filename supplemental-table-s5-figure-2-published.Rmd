@@ -1,6 +1,7 @@
 ---
 title: "Supplemental table S5 + Figure 2"
-output: html_notebook
+author: "Thomas Olsen"
+output: github_document
 ---
 
 # Library
